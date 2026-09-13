@@ -1,6 +1,7 @@
 import argparse
 import json
 import sys
+from dataclasses import asdict
 
 from .signature_complexity import analyze_signature_complexity
 
@@ -16,7 +17,7 @@ def main() -> None:
     result = analyze_signature_complexity(args.image)
 
     if args.json:
-        print(json.dumps({"is_too_simple": result.is_too_simple, "reasons": result.reasons, "metrics": result.metrics}, indent=2))
+        print(json.dumps(asdict(result), indent=2))
     else:
         verdict = "TOO SIMPLE" if result.is_too_simple else "OK"
         print(f"Verdict: {verdict}")

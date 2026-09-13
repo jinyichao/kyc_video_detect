@@ -1,6 +1,6 @@
 """High-level API: video path in, vehicle-context decision out."""
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 from .classifier import DEFAULT_MODEL_NAME, ClipZeroShotClassifier
 from .frame_sampler import sample_frames
@@ -24,22 +24,7 @@ class DetectionResult:
     frame_results: list[FrameResult] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        return {
-            "is_in_vehicle": self.is_in_vehicle,
-            "mean_vehicle_score": self.mean_vehicle_score,
-            "vehicle_frame_ratio": self.vehicle_frame_ratio,
-            "num_frames_sampled": self.num_frames_sampled,
-            "model_name": self.model_name,
-            "frame_results": [
-                {
-                    "frame_index": f.frame_index,
-                    "timestamp_sec": f.timestamp_sec,
-                    "vehicle_score": f.vehicle_score,
-                    "label": f.label,
-                }
-                for f in self.frame_results
-            ],
-        }
+        return asdict(self)
 
 
 class VehicleContextDetector:

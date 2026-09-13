@@ -5,14 +5,11 @@ access, so this is a slow integration test rather than a unit test.
 """
 
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from ekyc_vehicle_detect.detector import VehicleContextDetector  # noqa: E402
+from ekyc_vehicle_detect.detector import VehicleContextDetector
 
 
 def _make_synthetic_video(tmp_path: Path) -> Path:

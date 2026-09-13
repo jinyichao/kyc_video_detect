@@ -7,16 +7,12 @@ that real signatures should still be used to calibrate for production.
 """
 
 import random
-import sys
-from pathlib import Path
 
 import numpy as np
 import cv2
 from PIL import Image, ImageDraw, ImageFont
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from ekyc_signature_check.signature_complexity import analyze_signature_complexity  # noqa: E402
+from ekyc_signature_check.signature_complexity import analyze_signature_complexity
 
 W, H = 400, 200
 

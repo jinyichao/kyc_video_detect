@@ -111,11 +111,8 @@ def analyze_signature_complexity(
             metrics={"num_components": 0},
         )
 
-    total_ink_area = int(areas.sum())
     num_components = int(len(component_labels))
-    largest_idx = int(np.argmax(areas))
-    largest_label = int(component_labels[largest_idx])
-    largest_area_ratio = float(areas[largest_idx] / total_ink_area)
+    largest_label = int(component_labels[np.argmax(areas)])
 
     kept_mask = np.isin(labels, component_labels)
     ys, xs = np.nonzero(kept_mask)
@@ -125,8 +122,11 @@ def analyze_signature_complexity(
 
     # Per-component circularity distinguishes round dots from disconnected
     # *letters* (a printed, non-cursive signature also splits into several
-    # components, but letter shapes are far less circular than dots).
-    per_component_circularity = []
+    # components, but letter shapes are far less circular than dots). The
+    # largest component's own contour is kept for the shape analysis below,
+    # so it isn't computed twice.
+    dot_like_count = 0
+    largest_contour = None
     for lbl in component_labels:
         comp_mask = np.where(labels == lbl, np.uint8(255), np.uint8(0))
         comp_contours, _ = cv2.findContours(comp_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -134,15 +134,14 @@ def analyze_signature_complexity(
         comp_area = cv2.contourArea(comp_contour)
         comp_perimeter = cv2.arcLength(comp_contour, True)
         circ = (4 * np.pi * comp_area / (comp_perimeter**2)) if comp_perimeter > 0 else 0.0
-        per_component_circularity.append(circ)
-    dot_like_count = int(sum(c >= dot_circularity_threshold for c in per_component_circularity))
+        dot_like_count += circ >= dot_circularity_threshold
+        if lbl == largest_label:
+            largest_contour = comp_contour
     dot_like_fraction = dot_like_count / num_components
 
     reasons: list[str] = []
     metrics: dict = {
         "num_components": num_components,
-        "total_ink_area": total_ink_area,
-        "largest_component_area_ratio": largest_area_ratio,
         "bbox_aspect_ratio": bbox_aspect_ratio,
         "dot_like_fraction": dot_like_fraction,
     }
@@ -159,19 +158,16 @@ def analyze_signature_complexity(
         reasons.append("single_letter_or_compact_mark")
 
     largest_mask = np.where(labels == largest_label, np.uint8(255), np.uint8(0))
-    contours, _ = cv2.findContours(largest_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    contour = max(contours, key=cv2.contourArea)
-    area = cv2.contourArea(contour)
-    perimeter = cv2.arcLength(contour, True)
-    _, _, cw, ch = cv2.boundingRect(contour)
+    area = cv2.contourArea(largest_contour)
+    perimeter = cv2.arcLength(largest_contour, True)
+    _, _, cw, ch = cv2.boundingRect(largest_contour)
     comp_diag = float(np.hypot(cw, ch)) or 1.0
 
     circularity = (4 * np.pi * area / (perimeter**2)) if perimeter > 0 else 0.0
-    hull = cv2.convexHull(contour)
+    hull = cv2.convexHull(largest_contour)
     hull_area = cv2.contourArea(hull) or 1.0
     solidity = area / hull_area
-    approx = cv2.approxPolyDP(contour, 0.015 * perimeter, True)
-    vertex_count = len(approx)
+    vertex_count = len(cv2.approxPolyDP(largest_contour, 0.015 * perimeter, True))
     stroke_complexity = perimeter / comp_diag
     best_symmetry = max(_rotational_symmetry_score(largest_mask, n) for n in (2, 3, 4, 5, 6, 8))
 
@@ -190,7 +186,7 @@ def analyze_signature_complexity(
     elif best_symmetry >= symmetry_threshold:
         reasons.append("symmetric_shape")
 
-    if "disconnected_dots" not in reasons and num_components <= 2 and stroke_complexity < min_stroke_complexity:
+    if "disconnected_dots" not in reasons and num_components <= compact_mark_max_components and stroke_complexity < min_stroke_complexity:
         reasons.append("insufficient_stroke_complexity")
 
     return SignatureComplexityResult(
