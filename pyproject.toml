@@ -1,0 +1,25 @@
+[project]
+name = "ekyc-vehicle-detect"
+version = "0.1.0"
+description = "Zero-shot detection of whether an eKYC video was recorded inside a vehicle"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.1",
+    "transformers>=4.40",
+    "opencv-python-headless>=4.8",
+    "numpy>=1.24",
+    "pillow>=10.0",
+]
+
+[project.scripts]
+ekyc-vehicle-detect = "ekyc_vehicle_detect.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+markers = ["slow: requires network access to download the CLIP checkpoint"]
