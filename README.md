@@ -97,21 +97,31 @@ print(result.is_too_simple, result.reasons)
 - `insufficient_stroke_complexity` — low ink perimeter relative to the
   mark's size, for anything the above miss.
 
-**Validated** against 16 synthetic cases (`tests/test_signature_complexity.py`),
-including adversarial ones added after the fact: a heart (mirror- but not
-rotationally-symmetric), a spiral, an infinity symbol, a checkmark and an
-"X", a genuine signature rotated 90° (this was a real false positive until
-the bounding box was made rotation-invariant), a short signature in an
-actual script font, a printed name, and a monogram — all correctly
-classified.
+**Validated** against 23 synthetic cases (`tests/test_signature_complexity.py`):
+basic shapes (square, circle, star, triangle), trivial marks (checkmark,
+X, single line), symmetric doodles (spiral, infinity), a signature rotated
+90° (a real false positive until the bounding box was made
+rotation-invariant), plus realistic genuine cases designed to risk false
+positives — a lazy signature that's mostly a straight line, two
+disconnected cursive words, a signature dominated by one round flourish
+loop, a tiny scribble, and a short signature in an actual script font — all
+correctly classified.
 
-**Limitations:** thresholds (all keyword args, e.g. `dot_count_threshold`,
-`circularity_threshold`, `min_signature_aspect_ratio`) are tuned on
-synthetic shapes, not real signatures — calibrate before production.
-Assumes ink is the minority color (true for a scanned box or pad capture).
-A fast, genuinely scribbled short signature with a near-square bounding box
-could still trip `single_letter_or_compact_mark` — a precision/recall
-tradeoff to tune via `min_signature_aspect_ratio`, not a bug. The heart
-shape is caught via bounding-box aspect ratio, not reflection symmetry —
-the symmetry check is rotation-only, so a mirror-symmetric-but-elongated
-shape could in principle slip through undetected.
+**Limitations**, one already observed in testing:
+
+- **Confirmed:** a genuine multi-loop signature drawn *compactly* (small,
+  near-square bounding box, instead of spread across the page) trips
+  `single_letter_or_compact_mark` — see
+  `test_known_limitation_compact_genuine_scribble`. A fix (also requiring
+  low vertex count) was tried and rejected: it would let the heart and
+  spiral test cases through too, since those are only caught via this same
+  rule. Tune `min_signature_aspect_ratio` if this matters for your users.
+- **Narrower than first thought:** the symmetry check is rotation-only, so
+  a mirror-symmetric shape (e.g. an arrow) isn't caught by it — confirmed
+  by testing (`rotational_symmetry` stays ~0.1). In practice it was still
+  caught by `trivial_mark` instead, so the real risk is a mirror-symmetric
+  shape that *also* has many vertices and a wide aspect ratio.
+- Thresholds (all keyword args, e.g. `dot_count_threshold`,
+  `circularity_threshold`) are tuned on synthetic shapes, not real
+  signatures — calibrate before production.
+- Assumes ink is the minority color (true for a scanned box or pad capture).

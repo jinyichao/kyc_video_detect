@@ -170,6 +170,98 @@ def make_zigzag() -> np.ndarray:
     return np.array(img)
 
 
+def make_triangle() -> np.ndarray:
+    img = _blank()
+    ImageDraw.Draw(img).polygon([(200, 50), (140, 150), (260, 150)], outline=0, width=6)
+    return np.array(img)
+
+
+def make_single_line() -> np.ndarray:
+    """The most minimal possible mark: one straight stroke, no bends at all."""
+    img = _blank()
+    ImageDraw.Draw(img).line([(120, 150), (280, 60)], fill=0, width=6)
+    return np.array(img)
+
+
+def make_arrow() -> np.ndarray:
+    """Wide and mirror-symmetric but NOT rotationally symmetric — targets the
+    documented gap directly. It's still caught, but via trivial_mark (few
+    vertices) rather than the symmetry check, which stays fooled
+    (rotational_symmetry measures ~0.1, confirming the gap is real) — a
+    more elaborate mirror-symmetric shape with many vertices could still
+    slip through undetected."""
+    img = _blank()
+    ImageDraw.Draw(img).polygon(
+        [(60, 100), (260, 60), (260, 85), (340, 100), (260, 115), (260, 140)], outline=0, width=4
+    )
+    return np.array(img)
+
+
+def make_minimalist_real_signature() -> np.ndarray:
+    """A common real-world case: a near-straight stroke with one small
+    flourish loop at the end, the way many people actually sign quickly."""
+    arr = np.array(_blank())
+    t = np.linspace(0, 1, 300)
+    x, y = (60 + t * 260).astype(int), (120 - 10 * np.sin(t * 6)).astype(int)
+    cv2.polylines(arr, [np.stack([x, y], axis=1).reshape(-1, 1, 2)], False, 0, 4)
+    tt = np.linspace(0, 2 * np.pi, 100)
+    lx, ly = (320 + 15 * np.cos(tt)).astype(int), (110 + 15 * np.sin(tt)).astype(int)
+    cv2.polylines(arr, [np.stack([lx, ly], axis=1).reshape(-1, 1, 2)], True, 0, 4)
+    return arr
+
+
+def make_two_word_cursive_name() -> np.ndarray:
+    """Two disconnected cursive words (first + last name) — common in real
+    signatures and must not be confused with disconnected_dots."""
+    img = _blank()
+    d = ImageDraw.Draw(img)
+    try:
+        f = ImageFont.truetype("/System/Library/Fonts/Supplemental/SnellRoundhand.ttc", 55)
+    except OSError:
+        f = _font(55)
+    d.text((30, 60), "John", fill=0, font=f)
+    d.text((210, 60), "Smith", fill=0, font=f)
+    return np.array(img)
+
+
+def make_circular_flourish_signature() -> np.ndarray:
+    """A genuine signature whose single largest connected stroke happens to
+    be dominated by a round loop (e.g. an initial "O") — must not misfire
+    circular_shape just because part of it is round."""
+    arr = np.full((H, W), 255, dtype=np.uint8)
+    tt = np.linspace(0, 2 * np.pi, 200)
+    lx, ly = (150 + 55 * np.cos(tt)).astype(int), (100 + 45 * np.sin(tt)).astype(int)
+    cv2.polylines(arr, [np.stack([lx, ly], axis=1).reshape(-1, 1, 2)], True, 0, 4)
+    t2 = np.linspace(0, 1, 200)
+    tx, ty = (205 + t2 * 150).astype(int), (100 + 20 * np.sin(t2 * 10)).astype(int)
+    cv2.polylines(arr, [np.stack([tx, ty], axis=1).reshape(-1, 1, 2)], False, 0, 4)
+    return arr
+
+
+def make_tiny_scribble() -> np.ndarray:
+    """A genuine-looking scribble drawn very small, near the noise-area
+    filter threshold — must not be discarded as noise nor misclassified."""
+    img = _blank()
+    t = np.linspace(0, 4 * np.pi, 500)
+    x = (200 + 12 * np.cos(t * 0.9) * np.exp(-0.05 * t) + 3 * np.sin(t * 3.3)).astype(int)
+    y = (100 + 6 * np.sin(t * 1.7)).astype(int)
+    ImageDraw.Draw(img).line(list(zip(x, y)), fill=0, width=1)
+    return np.array(img)
+
+
+def make_tight_compact_scribble() -> np.ndarray:
+    """A genuine multi-loop signature drawn compactly (small, near-square
+    bounding box) instead of spread across the page. See
+    test_known_limitation_compact_genuine_scribble below: this one is NOT
+    in CASES because it currently (knowingly) fails."""
+    arr = np.full((H, W), 255, dtype=np.uint8)
+    t = np.linspace(0, 6 * np.pi, 2000)
+    x = (200 + 50 * np.cos(t * 1.3) * np.exp(-0.01 * t) + 15 * np.sin(t * 4.1)).astype(int)
+    y = (100 + 45 * np.sin(t * 1.1) + 12 * np.cos(t * 3.7)).astype(int)
+    cv2.polylines(arr, [np.stack([x, y], axis=1).reshape(-1, 1, 2)], False, 0, 4)
+    return arr
+
+
 CASES = {
     "square": (make_square, True),
     "circle": (make_circle, True),
@@ -182,11 +274,18 @@ CASES = {
     "spiral": (make_spiral, True),
     "infinity": (make_infinity, True),
     "zigzag": (make_zigzag, True),
+    "triangle": (make_triangle, True),
+    "single_line": (make_single_line, True),
+    "arrow": (make_arrow, True),
     "cursive_scribble": (make_cursive_scribble, False),
     "scribble_rotated_90": (make_scribble_rotated_90, False),
     "printed_name": (make_printed_name, False),
     "monogram": (make_monogram, False),
     "cursive_monogram_script": (make_cursive_monogram_script, False),
+    "minimalist_real_signature": (make_minimalist_real_signature, False),
+    "two_word_cursive_name": (make_two_word_cursive_name, False),
+    "circular_flourish_signature": (make_circular_flourish_signature, False),
+    "tiny_scribble": (make_tiny_scribble, False),
 }
 
 
@@ -197,3 +296,20 @@ def test_calibration_cases():
         if result.is_too_simple != expected_too_simple:
             failures.append(f"{name}: expected too_simple={expected_too_simple}, got {result.is_too_simple} (reasons={result.reasons})")
     assert not failures, "\n".join(failures)
+
+
+def test_known_limitation_compact_genuine_scribble():
+    """Characterization test, not a spec: a genuine multi-loop signature
+    drawn compactly currently trips single_letter_or_compact_mark, because
+    aspect ratio alone can't distinguish "compact simple shape" from
+    "compact genuine scribble." A fix was considered (also requiring low
+    vertex count) but rejected — it would let the heart and spiral cases
+    above through too, since those are only caught via this same rule.
+
+    This test exists so that behavior change is a deliberate decision, not
+    a silent regression: if this one starts failing after a threshold or
+    logic change, decide on purpose whether the new behavior is better.
+    """
+    result = analyze_signature_complexity(make_tight_compact_scribble())
+    assert result.is_too_simple is True
+    assert result.reasons == ["single_letter_or_compact_mark"]
