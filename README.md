@@ -83,22 +83,35 @@ print(result.is_too_simple, result.reasons)
   shape is a circle, a low-vertex convex polygon, or rotationally symmetric
   (catches a 5-point star, which is concave and slips past the polygon check).
 - `single_letter_or_compact_mark` — few components with a near-square
-  bounding box. A real signature spans several letters left-to-right and is
-  reliably wider than tall; a single glyph is square-ish *regardless of how
-  jagged its outline is* (a bold serif letter's silhouette can be as
-  complex as real cursive), which is why this is a separate check rather
-  than folded into stroke complexity.
+  minimum-area bounding rectangle (rotation-invariant, so a signature
+  photographed or written sideways isn't penalized). A real signature spans
+  several letters and is reliably wider than tall; a single glyph is
+  square-ish *regardless of how jagged its outline is* (a bold serif
+  letter's silhouette can be as complex as real cursive), which is why this
+  is a separate check rather than folded into stroke complexity.
+- `trivial_mark` — very few vertices in the polygon approximation of the
+  main shape, regardless of solidity or aspect ratio. Catches a checkmark
+  or an "X": genuine signatures, even short ones, wind through several
+  letters and need more vertices to approximate (observed gap: trivial
+  marks score 6-8, every genuine case tested scores 9+).
 - `insufficient_stroke_complexity` — low ink perimeter relative to the
   mark's size, for anything the above miss.
 
-**Validated** against 8 synthetic cases (`tests/test_signature_complexity.py`):
-correctly flags a square, circle, star, single letter, and dots; correctly
-clears a winding scribble, a printed name ("Sam Lee"), and a monogram ("JD").
+**Validated** against 16 synthetic cases (`tests/test_signature_complexity.py`),
+including adversarial ones added after the fact: a heart (mirror- but not
+rotationally-symmetric), a spiral, an infinity symbol, a checkmark and an
+"X", a genuine signature rotated 90° (this was a real false positive until
+the bounding box was made rotation-invariant), a short signature in an
+actual script font, a printed name, and a monogram — all correctly
+classified.
 
 **Limitations:** thresholds (all keyword args, e.g. `dot_count_threshold`,
 `circularity_threshold`, `min_signature_aspect_ratio`) are tuned on
 synthetic shapes, not real signatures — calibrate before production.
 Assumes ink is the minority color (true for a scanned box or pad capture).
 A fast, genuinely scribbled short signature with a near-square bounding box
-could trip `single_letter_or_compact_mark` — a precision/recall tradeoff to
-tune via `min_signature_aspect_ratio`, not a bug.
+could still trip `single_letter_or_compact_mark` — a precision/recall
+tradeoff to tune via `min_signature_aspect_ratio`, not a bug. The heart
+shape is caught via bounding-box aspect ratio, not reflection symmetry —
+the symmetry check is rotation-only, so a mirror-symmetric-but-elongated
+shape could in principle slip through undetected.

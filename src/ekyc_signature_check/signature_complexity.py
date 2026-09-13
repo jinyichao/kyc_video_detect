@@ -70,6 +70,7 @@ def analyze_signature_complexity(
     min_stroke_complexity: float = 2.2,
     min_signature_aspect_ratio: float = 1.6,
     compact_mark_max_components: int = 2,
+    min_genuine_vertex_count: int = 9,
 ) -> SignatureComplexityResult:
     """Flag a signature image as too simple to plausibly be a genuine signature.
 
@@ -114,11 +115,16 @@ def analyze_signature_complexity(
     num_components = int(len(component_labels))
     largest_label = int(component_labels[np.argmax(areas)])
 
+    # A minimum-area rotated rectangle (rather than an axis-aligned bounding
+    # box) keeps this ratio meaningful regardless of the angle the signature
+    # was written or scanned at — an axis-aligned box makes a signature
+    # written top-to-bottom, or a photo rotated 90 degrees, look artificially
+    # "compact" and misfire the single-letter check below.
     kept_mask = np.isin(labels, component_labels)
     ys, xs = np.nonzero(kept_mask)
-    bbox_w = int(xs.max() - xs.min()) or 1
-    bbox_h = int(ys.max() - ys.min()) or 1
-    bbox_aspect_ratio = bbox_w / bbox_h
+    ink_points = np.stack([xs, ys], axis=1).astype(np.float32)
+    _, (rect_w, rect_h), _ = cv2.minAreaRect(ink_points)
+    bbox_aspect_ratio = max(rect_w, rect_h) / (min(rect_w, rect_h) or 1.0)
 
     # Per-component circularity distinguishes round dots from disconnected
     # *letters* (a printed, non-cursive signature also splits into several
@@ -188,6 +194,14 @@ def analyze_signature_complexity(
 
     if "disconnected_dots" not in reasons and num_components <= compact_mark_max_components and stroke_complexity < min_stroke_complexity:
         reasons.append("insufficient_stroke_complexity")
+
+    # A trivial mark (a checkmark, a single tick, an "X") has very few bends
+    # regardless of its solidity or aspect ratio — genuine signatures, even
+    # short ones, wind through several letters and consistently need more
+    # vertices to approximate (see tests/test_signature_complexity.py for the
+    # observed gap: checkmark and X-mark score 6-8, every genuine case 9+).
+    if num_components <= compact_mark_max_components and vertex_count < min_genuine_vertex_count:
+        reasons.append("trivial_mark")
 
     return SignatureComplexityResult(
         is_too_simple=len(reasons) > 0,
