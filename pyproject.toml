@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 ekyc-vehicle-detect = "ekyc_vehicle_detect.cli:main"
+ekyc-signature-check = "ekyc_signature_check.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]

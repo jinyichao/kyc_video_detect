@@ -9,3 +9,4 @@ __pycache__/
 *.avi
 /models_cache/
 /sample_videos/
+/sample_signatures/
